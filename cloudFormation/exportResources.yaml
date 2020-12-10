@@ -11,18 +11,16 @@ Parameters:
   pWorkMailExportBucketName: 
     Description: "The name of the S3 bucket to create to save mailbox content to"
     Type: String
-    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
-    ConstraintDescription: "Bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
   pKeyAdminIamUserName:
     Description: "The IAM user, group, or role that should by able to administer the KMS key used to encrypt your WorkMail archives."
-    DefaultValue: "group/AdminGroup"
+    Default: "group/AdminGroup"
     Type: String
 Resources:
   rWorkMailExportBucket:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Ref: pWorkMailExportBucketName
+      BucketName: !Ref pWorkMailExportBucketName
       PublicAccessBlockConfiguration:
         BlockPublicAcls: True
         BlockPublicPolicy: True
@@ -93,7 +91,7 @@ Resources:
           - kms:Decrypt
           - kms:GenerateDataKey
           Resource:
-          - !Ref: rWorkMailExportBucketKey
+          - !Ref rWorkMailExportBucketKey
 #          - arn:aws:kms:us-east-1:111122223333:key/KEY-ID
           Condition:
             StringEquals:
