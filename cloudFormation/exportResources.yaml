@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "CF template to create resources in your AWS account to archive off all your Amazon WorkMail using the start-mailbox-export-job command."
+Outputs:
+  oKmsKeyArn:
+    Description: --kms-key-arn for the aws workmail start-mailbox-export-job command
+    Value: !Ref rWorkMailExportBucketKey
+  oRoleArn:
+    Description: --role-arn for the aws workmail start-mailbox-export-job command
+    Value: !Ref rWorkMailExportRole
+Parameters:
+  pWorkMailExportBucketName: 
+    Description: "The name of the S3 bucket to create to save mailbox content to"
+    Type: String
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
+    ConstraintDescription: "Bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+  pKeyAdminIamUserName:
+    Description: "The IAM user, group, or role that should by able to administer the KMS key used to encrypt your WorkMail archives."
+    DefaultValue: "group/AdminGroup"
+    Type: String
+Resources:
+  rWorkMailExportBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref: pWorkMailExportBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+  rWorkMailExportBucketKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    Properties:
+      Description: Symmetric CMK used to encrypt exported WorkMail
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: workmail-export-key
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+          Action: kms:*
+          Resource: '*'
+        - Sid: Allow administration of the key
+          Effect: Allow
+          Principal:
+            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:${pKeyAdminIamUserName}'
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: '*'
+#        - Sid: Allow use of the key
+#          Effect: Allow
+#          Principal:
+#            AWS: arn:aws:iam::123456789012:user/Bob
+#          Action:
+#          - kms:DescribeKey
+#          - kms:Encrypt
+#          - kms:Decrypt
+#          - kms:ReEncrypt*
+#          - kms:GenerateDataKey
+#          - kms:GenerateDataKeyWithoutPlaintext
+#          Resource: '*'
+  rWorkMailExportRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:AbortMultipartUpload
+          - s3:PutObject
+          - s3:GetBucketPolicyStatus
+          Resource:
+          - !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}'
+          - !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}/*'
+        - Effect: Allow
+          Action:
+          - kms:Decrypt
+          - kms:GenerateDataKey
+          Resource:
+          - !Ref: rWorkMailExportBucketKey
+#          - arn:aws:kms:us-east-1:111122223333:key/KEY-ID
+          Condition:
+            StringEquals:
+              kms:ViaService: !Sub 's3.${AWS::Region}.amazonaws.com'
+            StringLike:
+              kms:EncryptionContext:aws:s3:arn: !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}/*'
+        - Effect: Allow
+          Principal:
+            Service: export.workmail.amazonaws.com
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId: !Ref 'AWS::AccountId' 
