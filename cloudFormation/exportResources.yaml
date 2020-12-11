@@ -3,10 +3,10 @@ Description: "CF template to create resources in your AWS account to archive off
 Outputs:
   oKmsKeyArn:
     Description: --kms-key-arn for the aws workmail start-mailbox-export-job command
-    Value: !Ref rWorkMailExportBucketKey
+    Value: !GetAtt rWorkMailExportBucketKey.Arn
   oRoleArn:
     Description: --role-arn for the aws workmail start-mailbox-export-job command
-    Value: !Ref rWorkMailExportRole
+    Value: !GetAtt rWorkMailExportRole.Arn
 Parameters:
   pWorkMailExportBucketName: 
     Description: "The name of the S3 bucket to create to save mailbox content to"
@@ -93,7 +93,7 @@ Resources:
                 - kms:Decrypt
                 - kms:GenerateDataKey
                 Resource:
-                - !Ref rWorkMailExportBucketKey
+                - !GetAtt rWorkMailExportBucketKey.Arn
                 Condition:
                   StringEquals:
                     kms:ViaService: !Sub 's3.${AWS::Region}.amazonaws.com'
