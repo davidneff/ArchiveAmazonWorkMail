@@ -11,9 +11,9 @@ Parameters:
   pWorkMailExportBucketName: 
     Description: "The name of the S3 bucket to create to save mailbox content to"
     Type: String
-  pKeyAdminIamUserName:
-    Description: "The IAM user, group, or role that should by able to administer the KMS key used to encrypt your WorkMail archives."
-    Default: "group/AdminGroup"
+  pKeyAdminRoleName:
+    Description: "The IAM role that should by able to administer the KMS key used to encrypt your WorkMail archives."
+    Default: "Admin"
     Type: String
 Resources:
   rWorkMailExportBucket:
@@ -44,7 +44,7 @@ Resources:
         - Sid: Allow administration of the key
           Effect: Allow
           Principal:
-            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:${pKeyAdminIamUserName}'
+            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${pKeyAdminRoleName}'
           Action:
           - kms:Create*
           - kms:Describe*
@@ -75,29 +75,33 @@ Resources:
     Type: AWS::IAM::Role
     DeletionPolicy: Retain
     Properties:
+      Policies:
+        - PolicyName: MailboxExportPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                - s3:AbortMultipartUpload
+                - s3:PutObject
+                - s3:GetBucketPolicyStatus
+                Resource:
+                - !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}'
+                - !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}/*'
+              - Effect: Allow
+                Action:
+                - kms:Decrypt
+                - kms:GenerateDataKey
+                Resource:
+                - !Ref rWorkMailExportBucketKey
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 's3.${AWS::Region}.amazonaws.com'
+                  StringLike:
+                    kms:EncryptionContext:aws:s3:arn: !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}/*'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - s3:AbortMultipartUpload
-          - s3:PutObject
-          - s3:GetBucketPolicyStatus
-          Resource:
-          - !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}'
-          - !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}/*'
-        - Effect: Allow
-          Action:
-          - kms:Decrypt
-          - kms:GenerateDataKey
-          Resource:
-          - !Ref rWorkMailExportBucketKey
-#          - arn:aws:kms:us-east-1:111122223333:key/KEY-ID
-          Condition:
-            StringEquals:
-              kms:ViaService: !Sub 's3.${AWS::Region}.amazonaws.com'
-            StringLike:
-              kms:EncryptionContext:aws:s3:arn: !Sub 'arn:aws:s3:::${pWorkMailExportBucketName}/*'
         - Effect: Allow
           Principal:
             Service: export.workmail.amazonaws.com
